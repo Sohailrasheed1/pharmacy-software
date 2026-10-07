@@ -1,0 +1,441 @@
+<title>Pharmacy Counter</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: left sidebar nav + one working area per module; sidebar becomes a scrolling tab strip on phones.
+   Look: clinical green on cool grey, mono for batch/expiry/money. */
+:root {
+  --bg: #f1f4f3;
+  --surface: #ffffff;
+  --ink: #14221e;
+  --muted: #5b6965;
+  --line: #d8dfdc;
+  --accent: #0d6b54;
+  --accent-ink: #ffffff;
+  --accent-soft: #dcefe8;
+  --warn: #8f5500;
+  --warn-soft: #fbebc8;
+  --bad: #a02226;
+  --bad-soft: #f8dada;
+  --good: #1d7340;
+  --good-soft: #dcf0e2;
+  --font-body: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-data: "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1815; --surface: #15231f; --ink: #e5eeeb; --muted: #97a9a3; --line: #25352f;
+    --accent: #43c29d; --accent-ink: #06241c; --accent-soft: #17392f;
+    --warn: #f1b64e; --warn-soft: #3a2c10; --bad: #ff8d90; --bad-soft: #3d1b1d;
+    --good: #6fd391; --good-soft: #173823; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1815; --surface: #15231f; --ink: #e5eeeb; --muted: #97a9a3; --line: #25352f;
+  --accent: #43c29d; --accent-ink: #06241c; --accent-soft: #17392f;
+  --warn: #f1b64e; --warn-soft: #3a2c10; --bad: #ff8d90; --bad-soft: #3d1b1d;
+  --good: #6fd391; --good-soft: #173823; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 14px; line-height: 1.45; padding-inline: 16px; padding-block: 16px 32px; }
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+button, input, select { font: inherit; color: inherit; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mono { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+
+.shell { max-width: 1180px; margin-inline: auto; display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 20px; align-items: start; }
+.side { position: sticky; top: env(safe-area-inset-top, 0px); display: flex; flex-direction: column; gap: 18px; padding-top: 4px; }
+.brand h1 { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
+.brand p { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
+.example-flag { display: inline-block; margin-top: 8px; padding: 2px 8px; border: 1px dashed var(--muted); border-radius: 4px; font-size: 11px; color: var(--muted); }
+.nav { display: flex; flex-direction: column; gap: 2px; }
+.nav button { text-align: left; background: none; border: 0; border-radius: 6px; padding: 9px 10px; cursor: pointer; color: var(--muted); font-weight: 500; display: flex; justify-content: space-between; gap: 8px; }
+.nav button:hover { background: var(--accent-soft); color: var(--ink); }
+.nav button[aria-current="page"] { background: var(--accent); color: var(--accent-ink); }
+.nav .count { font-family: var(--font-data); font-size: 12px; opacity: 0.9; }
+
+.main { min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+.bar { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; }
+.bar h2 { font-size: 22px; font-weight: 700; letter-spacing: -0.015em; }
+.bar .meta { color: var(--muted); font-size: 12px; }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.panel > header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.panel > header h3 { font-size: 14px; font-weight: 600; }
+.panel > .body { padding: 14px; }
+.cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.cols.pos { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); }
+
+.stats { display: flex; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.stat { flex: 1 1 160px; padding: 14px 16px; border-right: 1px solid var(--line); min-width: 0; }
+.stat:last-child { border-right: 0; }
+.stat .k { color: var(--muted); font-size: 12px; }
+.stat .v { font-family: var(--font-data); font-size: 22px; font-weight: 500; margin-top: 2px; }
+.stat .v.warn { color: var(--warn); } .stat .v.bad { color: var(--bad); }
+
+.tablewrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); padding: 8px 14px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+tr:last-child td { border-bottom: 0; }
+td.num, th.num { text-align: right; }
+td .sub { display: block; color: var(--muted); font-size: 12px; }
+td.nowrap { white-space: nowrap; }
+
+.pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.pill.ok { background: var(--good-soft); color: var(--good); }
+.pill.near { background: var(--warn-soft); color: var(--warn); }
+.pill.low { background: var(--warn-soft); color: var(--warn); }
+.pill.exp { background: var(--bad-soft); color: var(--bad); }
+
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: 7px 12px; cursor: pointer; font-weight: 600; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.small { padding: 3px 9px; font-size: 12px; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field label { font-size: 12px; color: var(--muted); font-weight: 500; }
+.input { width: 100%; border: 1px solid var(--line); background: var(--bg); border-radius: 6px; padding: 8px 10px; }
+.filters { display: flex; flex-wrap: wrap; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.filters .field { flex: 1 1 180px; }
+
+.results { list-style: none; margin: 0; padding: 0; max-height: 380px; overflow-y: auto; }
+.results li button { width: 100%; background: none; border: 0; border-bottom: 1px solid var(--line); text-align: left; padding: 10px 14px; cursor: pointer; display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+.results li button:hover { background: var(--accent-soft); }
+.results .nm { font-weight: 600; } .results .sm { color: var(--muted); font-size: 12px; display: block; }
+.results .pr { font-family: var(--font-data); white-space: nowrap; }
+
+.qty { display: inline-flex; align-items: center; gap: 4px; }
+.qty button { width: 26px; height: 26px; border: 1px solid var(--line); background: var(--surface); border-radius: 5px; cursor: pointer; font-weight: 700; }
+.qty span { min-width: 22px; text-align: center; font-family: var(--font-data); }
+.unitsel { border: 1px solid var(--line); background: var(--bg); border-radius: 5px; padding: 3px 4px; font-size: 12px; }
+
+.totals { display: flex; flex-direction: column; gap: 8px; padding: 14px; border-top: 1px solid var(--line); }
+.totals .row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.totals .grand { font-size: 20px; font-weight: 700; }
+.totals .grand .mono { font-weight: 500; }
+.paygrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.paygrid label { border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; cursor: pointer; display: flex; gap: 8px; align-items: center; background: var(--bg); }
+.paygrid input { accent-color: var(--accent); }
+.paygrid label:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.empty { padding: 28px 14px; text-align: center; color: var(--muted); }
+
+.reportlist { list-style: none; margin: 0; padding: 0; }
+.reportlist li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.reportlist li:last-child { border-bottom: 0; }
+.reportlist .t { font-weight: 600; } .reportlist .d { color: var(--muted); font-size: 12px; display: block; }
+
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 8px; max-width: calc(100% - 32px); font-weight: 500; box-shadow: 0 6px 24px rgba(0,0,0,0.25); }
+
+@media (max-width: 820px) {
+  .shell { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .side { position: static; gap: 12px; }
+  .nav { flex-direction: row; overflow-x: auto; gap: 4px; padding-bottom: 4px; }
+  .nav button { white-space: nowrap; flex: 0 0 auto; }
+  .cols, .cols.pos { grid-template-columns: minmax(0, 1fr); }
+  .stat { border-right: 0; border-bottom: 1px solid var(--line); }
+  .stat:last-child { border-bottom: 0; }
+}
+@media (prefers-reduced-motion: no-preference) { .toast { animation: rise 0.18s ease-out; } @keyframes rise { from { opacity: 0; transform: translate(-50%, 8px); } } }
+</style>
+
+<div class="shell">
+  <aside class="side">
+    <div class="brand">
+      <h1>Al-Shifa Pharmacy</h1>
+      <p>Counter 1 · <span id="today"></span></p>
+      <span class="example-flag">Example data</span>
+    </div>
+    <nav class="nav" id="nav" aria-label="Modules"></nav>
+  </aside>
+
+  <main class="main">
+    <!-- Dashboard -->
+    <section data-view="dash">
+      <div class="bar"><h2>Dashboard</h2><span class="meta">Aaj ka summary</span></div>
+      <div class="stats" style="margin-top:14px" id="stats"></div>
+      <div class="cols" style="margin-top:16px">
+        <div class="panel">
+          <header><h3>Expiry within 90 days</h3><span class="meta mono" id="nearCount"></span></header>
+          <div class="tablewrap"><table><thead><tr><th>Item</th><th>Batch</th><th>Expiry</th><th class="num">Qty</th></tr></thead><tbody id="nearBody"></tbody></table></div>
+        </div>
+        <div class="panel">
+          <header><h3>Low stock, reorder</h3><span class="meta mono" id="lowCount"></span></header>
+          <div class="tablewrap"><table><thead><tr><th>Item</th><th class="num">In stock</th><th class="num">Reorder at</th></tr></thead><tbody id="lowBody"></tbody></table></div>
+        </div>
+      </div>
+      <div class="panel" style="margin-top:16px">
+        <header><h3>Recent bills</h3></header>
+        <div class="tablewrap"><table><thead><tr><th>Bill</th><th>Time</th><th>Customer</th><th>Payment</th><th class="num">Amount</th></tr></thead><tbody id="billsBody"></tbody></table></div>
+      </div>
+    </section>
+
+    <!-- New sale -->
+    <section data-view="sale" hidden>
+      <div class="bar"><h2>New sale</h2><span class="meta mono" id="billNo"></span></div>
+      <div class="cols pos" style="margin-top:14px">
+        <div class="panel">
+          <header><h3>Find item</h3><span class="meta">Name, company ya barcode</span></header>
+          <div class="filters"><div class="field"><label for="saleSearch">Search</label><input class="input" id="saleSearch" type="search" placeholder="e.g. panadol" autocomplete="off"></div></div>
+          <ul class="results" id="saleResults"></ul>
+        </div>
+        <div class="panel">
+          <header><h3>Bill</h3><button class="btn small" id="clearCart" type="button">Clear</button></header>
+          <div id="cartBox"></div>
+          <div class="totals">
+            <div class="row"><span>Subtotal</span><span class="mono" id="subtotal"></span></div>
+            <div class="row"><label for="discount">Discount (Rs)</label><input class="input mono" id="discount" type="number" min="0" value="0" style="width:110px;text-align:right"></div>
+            <div class="row grand"><span>Total</span><span class="mono" id="grand"></span></div>
+            <div class="paygrid" id="pay">
+              <label><input type="radio" name="pay" value="Cash" checked> Cash</label>
+              <label><input type="radio" name="pay" value="Udhaar"> Udhaar</label>
+              <label><input type="radio" name="pay" value="Easypaisa"> Easypaisa</label>
+              <label><input type="radio" name="pay" value="JazzCash"> JazzCash</label>
+            </div>
+            <div class="field" id="custField" hidden><label for="cust">Customer (udhaar khata)</label><select class="input" id="cust"></select></div>
+            <button class="btn primary" id="complete" type="button" disabled>Complete sale and print receipt</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Stock -->
+    <section data-view="stock" hidden>
+      <div class="bar"><h2>Stock</h2><span class="meta">Batch aur expiry ke hisaab se</span></div>
+      <div class="panel" style="margin-top:14px">
+        <div class="filters">
+          <div class="field"><label for="stockSearch">Search</label><input class="input" id="stockSearch" type="search" placeholder="Item ya company" autocomplete="off"></div>
+          <div class="field"><label for="stockFilter">Show</label>
+            <select class="input" id="stockFilter"><option value="all">All batches</option><option value="near">Near expiry</option><option value="exp">Expired</option><option value="low">Low stock</option></select></div>
+          <div class="field" style="flex:0 0 auto;justify-content:flex-end"><button class="btn primary" type="button" data-soon="Naya item form agle step mein banega">Add item</button></div>
+        </div>
+        <div class="tablewrap"><table><thead><tr><th>Item</th><th>Batch</th><th>Expiry</th><th class="num">Qty</th><th class="num">Price / strip</th><th>Status</th></tr></thead><tbody id="stockBody"></tbody></table></div>
+      </div>
+    </section>
+
+    <!-- Suppliers -->
+    <section data-view="supp" hidden>
+      <div class="bar"><h2>Suppliers and purchases</h2><span class="meta">Distributors ka hisaab</span></div>
+      <div class="panel" style="margin-top:14px">
+        <header><h3>Payable</h3><button class="btn primary small" type="button" data-soon="Purchase entry (GRN) agle step mein banegi">New purchase</button></header>
+        <div class="tablewrap"><table><thead><tr><th>Distributor</th><th>Last purchase</th><th class="num">We owe</th><th>Due</th><th></th></tr></thead><tbody id="suppBody"></tbody></table></div>
+      </div>
+    </section>
+
+    <!-- Udhaar -->
+    <section data-view="cust" hidden>
+      <div class="bar"><h2>Udhaar khata</h2><span class="meta">Customers ka baqaya</span></div>
+      <div class="panel" style="margin-top:14px">
+        <header><h3>Customers</h3><button class="btn primary small" type="button" data-soon="Naya khata form agle step mein banega">New khata</button></header>
+        <div class="tablewrap"><table><thead><tr><th>Customer</th><th>Phone</th><th>Last bill</th><th class="num">Baqaya</th><th></th></tr></thead><tbody id="custBody"></tbody></table></div>
+      </div>
+    </section>
+
+    <!-- Reports -->
+    <section data-view="rep" hidden>
+      <div class="bar"><h2>Reports</h2><span class="meta">Planned reports</span></div>
+      <div class="panel" style="margin-top:14px">
+        <ul class="reportlist">
+          <li><span><span class="t">Daily sales and cash</span><span class="d">Cash, udhaar aur mobile wallet alag alag, shift close ke liye</span></span><button class="btn small" type="button" data-soon="Report agle step mein banegi">Open</button></li>
+          <li><span><span class="t">Profit by item</span><span class="d">Purchase rate aur sale rate ka farq, company wise</span></span><button class="btn small" type="button" data-soon="Report agle step mein banegi">Open</button></li>
+          <li><span><span class="t">Expiry and return list</span><span class="d">Distributor ko wapis bhejne wali dawaiyan</span></span><button class="btn small" type="button" data-soon="Report agle step mein banegi">Open</button></li>
+          <li><span><span class="t">Controlled drugs register</span><span class="d">Narcotic aur psychotropic dawaiyon ki entry, inspection ke liye</span></span><button class="btn small" type="button" data-soon="Report agle step mein banegi">Open</button></li>
+          <li><span><span class="t">Supplier ledger</span><span class="d">Har distributor ka lena dena</span></span><button class="btn small" type="button" data-soon="Report agle step mein banegi">Open</button></li>
+          <li><span><span class="t">Sales tax summary</span><span class="d">Mahine ki sales aur tax, accountant ko dene ke liye</span></span><button class="btn small" type="button" data-soon="Report agle step mein banegi">Open</button></li>
+        </ul>
+      </div>
+    </section>
+  </main>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script>
+(function () {
+  var DAY = 864e5, now = new Date();
+  function rs(n) { return "Rs " + Math.round(n).toLocaleString("en-PK"); }
+  function expLabel(d) { return new Date(now.getTime() + d * DAY).toLocaleDateString("en-GB", { month: "short", year: "numeric" }); }
+  function $(id) { return document.getElementById(id); }
+
+  // Example items. Prices and quantities are made up for the prototype.
+  var tab = [{ n: "Strip", m: 1 }, { n: "Tablet", m: 0.1 }];
+  var cap = [{ n: "Strip", m: 1 }, { n: "Capsule", m: 1 / 14 }];
+  var one = function (u) { return [{ n: u, m: 1 }]; };
+  var items = [
+    { id: 1, name: "Panadol 500mg", co: "GSK", price: 40, batch: "PN2418", exp: 410, qty: 120, re: 40, units: tab },
+    { id: 2, name: "Panadol 500mg", co: "GSK", price: 40, batch: "PN2371", exp: 48, qty: 18, re: 0, units: tab },
+    { id: 3, name: "Augmentin 625mg", co: "GSK", price: 760, batch: "AG9921", exp: 260, qty: 9, re: 10, units: [{ n: "Pack", m: 1 }, { n: "Tablet", m: 1 / 6 }] },
+    { id: 4, name: "Risek 40mg", co: "Getz Pharma", price: 530, batch: "RK5530", exp: 330, qty: 24, re: 10, units: cap },
+    { id: 5, name: "Brufen 400mg", co: "Abbott", price: 95, batch: "BR1187", exp: 75, qty: 31, re: 15, units: tab },
+    { id: 6, name: "Calpol 120mg/5ml", co: "GSK", price: 120, batch: "CP7714", exp: 190, qty: 6, re: 12, units: one("Bottle") },
+    { id: 7, name: "Arinac Forte", co: "Abbott", price: 80, batch: "AR3306", exp: -12, qty: 14, re: 0, units: tab },
+    { id: 8, name: "Flagyl 400mg", co: "Sanofi", price: 70, batch: "FL4402", exp: 520, qty: 44, re: 20, units: tab },
+    { id: 9, name: "ORS sachet", co: "Local", price: 25, batch: "OR0912", exp: 610, qty: 150, re: 50, units: one("Sachet") },
+    { id: 10, name: "Surbex-Z", co: "Abbott", price: 310, batch: "SZ6620", exp: 82, qty: 11, re: 8, units: one("Bottle") }
+  ];
+  function status(it) {
+    if (it.exp < 0) return "exp";
+    if (it.exp <= 90) return "near";
+    if (it.re && it.qty <= it.re) return "low";
+    return "ok";
+  }
+  var pillText = { ok: "OK", near: "Near expiry", low: "Low stock", exp: "Expired" };
+  function pill(it) { var s = status(it); return '<span class="pill ' + s + '">' + pillText[s] + "</span>"; }
+
+  var customers = [
+    { name: "Mohammad Aslam", phone: "0300 1234567", last: "Yesterday", due: 3450 },
+    { name: "Bushra Bibi", phone: "0321 7654321", last: "3 days ago", due: 1280 },
+    { name: "Chaudhry Traders (staff)", phone: "0333 5550101", last: "Last week", due: 8900 },
+    { name: "Dr. Tariq Clinic", phone: "0345 2223344", last: "2 days ago", due: 0 }
+  ];
+  var suppliers = [
+    { name: "Al-Fateh Distributors", last: "01 Oct", owe: 184500, due: "Due in 6 days" },
+    { name: "Medico Traders", last: "28 Sep", owe: 92300, due: "Due in 2 days" },
+    { name: "Sehat Pharma Link", last: "20 Sep", owe: 41000, due: "Overdue 3 days" }
+  ];
+  var bills = [
+    { no: 1041, time: "11:42 am", cust: "Walk-in", pay: "Cash", amt: 340 },
+    { no: 1040, time: "11:30 am", cust: "Bushra Bibi", pay: "Udhaar", amt: 1280 },
+    { no: 1039, time: "11:12 am", cust: "Walk-in", pay: "Easypaisa", amt: 760 },
+    { no: 1038, time: "10:55 am", cust: "Walk-in", pay: "Cash", amt: 95 }
+  ];
+  var billNo = 1042;
+
+  // Navigation
+  var views = [["dash", "Dashboard"], ["sale", "New sale"], ["stock", "Stock"], ["supp", "Suppliers"], ["cust", "Udhaar"], ["rep", "Reports"]];
+  function renderNav(cur) {
+    var alerts = items.filter(function (i) { var s = status(i); return s === "near" || s === "exp" || s === "low"; }).length;
+    $("nav").innerHTML = views.map(function (v) {
+      var c = v[0] === "stock" ? '<span class="count">' + alerts + "</span>" : "";
+      return '<button type="button" data-go="' + v[0] + '"' + (v[0] === cur ? ' aria-current="page"' : "") + ">" + v[1] + c + "</button>";
+    }).join("");
+  }
+  function go(v) {
+    document.querySelectorAll("[data-view]").forEach(function (s) { s.hidden = s.getAttribute("data-view") !== v; });
+    renderNav(v);
+    try { history.replaceState(null, "", "#" + v); } catch (e) {}
+  }
+  $("nav").addEventListener("click", function (e) { var b = e.target.closest("[data-go]"); if (b) go(b.getAttribute("data-go")); });
+
+  var tt;
+  function toast(msg) { var t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(tt); tt = setTimeout(function () { t.hidden = true; }, 2600); }
+  document.addEventListener("click", function (e) { var b = e.target.closest("[data-soon]"); if (b) toast(b.getAttribute("data-soon")); });
+
+  // Dashboard
+  function renderDash() {
+    var near = items.filter(function (i) { return i.exp <= 90; }).sort(function (a, b) { return a.exp - b.exp; });
+    var low = items.filter(function (i) { return i.exp > 90 && i.re && i.qty <= i.re; });
+    var owed = customers.reduce(function (s, c) { return s + c.due; }, 0);
+    var today = bills.reduce(function (s, b) { return s + b.amt; }, 0);
+    $("stats").innerHTML =
+      '<div class="stat"><div class="k">Sales today</div><div class="v">' + rs(today) + "</div></div>" +
+      '<div class="stat"><div class="k">Bills today</div><div class="v">' + bills.length + "</div></div>" +
+      '<div class="stat"><div class="k">Expiring or expired</div><div class="v warn">' + near.length + "</div></div>" +
+      '<div class="stat"><div class="k">Udhaar to collect</div><div class="v">' + rs(owed) + "</div></div>";
+    $("nearCount").textContent = near.length + " batches";
+    $("lowCount").textContent = low.length + " items";
+    $("nearBody").innerHTML = near.map(function (i) {
+      return "<tr><td>" + i.name + '<span class="sub">' + i.co + '</span></td><td class="mono">' + i.batch + '</td><td class="nowrap mono">' + expLabel(i.exp) + ' ' + pill(i) + '</td><td class="num mono">' + i.qty + "</td></tr>";
+    }).join("");
+    $("lowBody").innerHTML = low.map(function (i) {
+      return "<tr><td>" + i.name + '<span class="sub">' + i.co + '</span></td><td class="num mono">' + i.qty + '</td><td class="num mono">' + i.re + "</td></tr>";
+    }).join("");
+    $("billsBody").innerHTML = bills.map(function (b) {
+      return '<tr><td class="mono">#' + b.no + '</td><td class="nowrap">' + b.time + "</td><td>" + b.cust + "</td><td>" + b.pay + '</td><td class="num mono">' + rs(b.amt) + "</td></tr>";
+    }).join("");
+  }
+
+  // Stock table
+  function renderStock() {
+    var q = $("stockSearch").value.trim().toLowerCase(), f = $("stockFilter").value;
+    var rows = items.filter(function (i) {
+      return (!q || (i.name + " " + i.co).toLowerCase().indexOf(q) > -1) && (f === "all" || status(i) === f);
+    });
+    $("stockBody").innerHTML = rows.length ? rows.map(function (i) {
+      return "<tr><td>" + i.name + '<span class="sub">' + i.co + '</span></td><td class="mono">' + i.batch + '</td><td class="nowrap mono">' + expLabel(i.exp) + '</td><td class="num mono">' + i.qty + '</td><td class="num mono">' + rs(i.price) + "</td><td>" + pill(i) + "</td></tr>";
+    }).join("") : '<tr><td colspan="6" class="empty">Is filter se koi item nahi mila.</td></tr>';
+  }
+  $("stockSearch").addEventListener("input", renderStock);
+  $("stockFilter").addEventListener("change", renderStock);
+
+  // Suppliers and customers
+  $("suppBody").innerHTML = suppliers.map(function (s) {
+    var late = s.due.indexOf("Overdue") === 0;
+    return "<tr><td>" + s.name + '</td><td class="nowrap">' + s.last + '</td><td class="num mono">' + rs(s.owe) + '</td><td><span class="pill ' + (late ? "exp" : "near") + '">' + s.due + '</span></td><td class="num"><button class="btn small" type="button" data-soon="Payment entry agle step mein banegi">Pay</button></td></tr>';
+  }).join("");
+  $("custBody").innerHTML = customers.map(function (c) {
+    return "<tr><td>" + c.name + '</td><td class="mono nowrap">' + c.phone + '</td><td class="nowrap">' + c.last + '</td><td class="num mono">' + rs(c.due) + '</td><td class="num"><button class="btn small" type="button" data-soon="Payment receive form agle step mein banega">Receive</button></td></tr>';
+  }).join("");
+  $("cust").innerHTML = customers.map(function (c, i) { return '<option value="' + i + '">' + c.name + "</option>"; }).join("");
+
+  // Sale screen
+  var cart = [];
+  function lineUnit(l) { return items.filter(function (i) { return i.id === l.id; })[0].units[l.u]; }
+  function lineItem(l) { return items.filter(function (i) { return i.id === l.id; })[0]; }
+  function linePrice(l) { return Math.round(lineItem(l).price * lineUnit(l).m); }
+
+  function renderResults() {
+    var q = $("saleSearch").value.trim().toLowerCase();
+    var rows = items.filter(function (i) { return i.exp >= 0 && (!q || (i.name + " " + i.co).toLowerCase().indexOf(q) > -1); })
+      .sort(function (a, b) { return a.exp - b.exp; });
+    $("saleResults").innerHTML = rows.length ? rows.map(function (i) {
+      return '<li><button type="button" data-add="' + i.id + '"><span><span class="nm">' + i.name + '</span><span class="sm">' + i.co + " · batch " + i.batch + " · exp " + expLabel(i.exp) + " · " + i.qty + ' in stock</span></span><span class="pr">' + rs(i.price) + "</span></button></li>";
+    }).join("") : '<li class="empty">Koi item nahi mila.</li>';
+  }
+  $("saleSearch").addEventListener("input", renderResults);
+  $("saleResults").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-add]"); if (!b) return;
+    var id = +b.getAttribute("data-add");
+    var ex = cart.filter(function (l) { return l.id === id && l.u === 0; })[0];
+    if (ex) ex.q++; else cart.push({ id: id, u: 0, q: 1 });
+    renderCart();
+  });
+
+  function renderCart() {
+    var box = $("cartBox");
+    if (!cart.length) {
+      box.innerHTML = '<div class="empty">Bill khali hai. Left side se item chunein.</div>';
+    } else {
+      box.innerHTML = '<div class="tablewrap"><table><thead><tr><th>Item</th><th>Unit</th><th>Qty</th><th class="num">Amount</th></tr></thead><tbody>' + cart.map(function (l, idx) {
+        var it = lineItem(l);
+        var sel = it.units.length > 1 ? '<select class="unitsel" data-unit="' + idx + '" aria-label="Unit">' + it.units.map(function (u, k) { return '<option value="' + k + '"' + (k === l.u ? " selected" : "") + ">" + u.n + "</option>"; }).join("") + "</select>" : it.units[0].n;
+        return "<tr><td>" + it.name + '<span class="sub mono">' + rs(linePrice(l)) + " each</span></td><td>" + sel + '</td><td><span class="qty"><button type="button" data-dec="' + idx + '" aria-label="Decrease">-</button><span>' + l.q + '</span><button type="button" data-inc="' + idx + '" aria-label="Increase">+</button></span></td><td class="num mono">' + rs(linePrice(l) * l.q) + "</td></tr>";
+      }).join("") + "</tbody></table></div>";
+    }
+    updateTotals();
+  }
+  function updateTotals() {
+    var sub = cart.reduce(function (s, l) { return s + linePrice(l) * l.q; }, 0);
+    var disc = Math.min(Math.max(+$("discount").value || 0, 0), sub);
+    $("subtotal").textContent = rs(sub);
+    $("grand").textContent = rs(sub - disc);
+    $("complete").disabled = !cart.length;
+  }
+  $("cartBox").addEventListener("click", function (e) {
+    var d = e.target.closest("[data-dec]"), n = e.target.closest("[data-inc]");
+    if (d) { var i = +d.getAttribute("data-dec"); cart[i].q--; if (cart[i].q < 1) cart.splice(i, 1); renderCart(); }
+    if (n) { cart[+n.getAttribute("data-inc")].q++; renderCart(); }
+  });
+  $("cartBox").addEventListener("change", function (e) {
+    var s = e.target.closest("[data-unit]");
+    if (s) { cart[+s.getAttribute("data-unit")].u = +s.value; renderCart(); }
+  });
+  $("discount").addEventListener("input", updateTotals);
+  $("clearCart").addEventListener("click", function () { cart = []; renderCart(); });
+  $("pay").addEventListener("change", function () {
+    $("custField").hidden = document.querySelector('input[name="pay"]:checked').value !== "Udhaar";
+  });
+  $("complete").addEventListener("click", function () {
+    var total = $("grand").textContent;
+    toast("Bill #" + billNo + " (" + total + ") example ke taur par save hua. Asal system mein yahan receipt print hogi.");
+    billNo++; cart = []; $("discount").value = 0; $("billNo").textContent = "Bill #" + billNo; renderCart();
+  });
+
+  // Boot
+  $("today").textContent = now.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+  $("billNo").textContent = "Bill #" + billNo;
+  renderDash(); renderStock(); renderResults(); renderCart();
+  var start = (location.hash || "").replace("#", "");
+  go(views.some(function (v) { return v[0] === start; }) ? start : "dash");
+})();
+</script>
